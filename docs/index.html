@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Stage Recommender — Two-Tower Retrieval + LambdaMART</title>
+<meta name="description" content="PyTorch two-tower retrieval + LightGBM LambdaMART re-ranking on MovieLens-100K. Inference runs client-side.">
+<style>
+  :root{
+    --bg:#fbfbfa; --panel:#fff; --ink:#16181d; --muted:#666c78;
+    --line:#e3e5e9; --accent:#2f5d8c; --accent-soft:#eef3f9; --good:#1f7a4d;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme=light]){
+      --bg:#14161a; --panel:#1c1f25; --ink:#e8eaee; --muted:#98a0ac;
+      --line:#2b2f37; --accent:#7fb0e0; --accent-soft:#1e2833; --good:#5cc48d;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
+  header{margin-bottom:22px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--muted);margin:0 0 14px;max-width:70ch}
+  .links a{
+    color:var(--accent);text-decoration:none;font-size:14px;
+    border:1px solid var(--line);padding:5px 11px;border-radius:6px;
+    display:inline-block;margin-right:8px;background:var(--panel);
+  }
+  .links a:hover{border-color:var(--accent)}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:20px 0 24px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+  .card .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .card .v{font-size:21px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
+  .card .d{font-size:12.5px;color:var(--good);margin-top:2px}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+  .tabs button{
+    background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    padding:9px 14px;font-size:14.5px;cursor:pointer;font-family:inherit;
+  }
+  .tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+
+  select{
+    width:100%;padding:9px 11px;font:inherit;font-size:14.5px;border:1px solid var(--line);
+    border-radius:7px;background:var(--panel);color:var(--ink);margin-bottom:16px;
+  }
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:680px){.cols{grid-template-columns:1fr}}
+  h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 9px}
+  ol,ul{margin:0;padding-left:0;list-style:none}
+  li{
+    padding:7px 10px;border-bottom:1px solid var(--line);font-size:14px;
+    display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  }
+  li:last-child{border-bottom:0}
+  .rank{color:var(--muted);font-variant-numeric:tabular-nums;min-width:22px}
+  .score{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .title-cell{flex:1}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px}
+
+  .prose{max-width:72ch}
+  .prose h2{font-size:17px;margin:26px 0 8px}
+  .prose p,.prose li.p{color:var(--ink);margin:0 0 11px}
+  .prose ul.b{list-style:disc;padding-left:20px;margin:0 0 12px}
+  .prose ul.b li{display:list-item;border:0;padding:2px 0}
+  code{background:var(--accent-soft);padding:1.5px 5px;border-radius:4px;font-size:13px}
+  pre{background:var(--accent-soft);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:6px 0 14px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  tr.best td{font-weight:650}
+  .loading{color:var(--muted);padding:40px 0;text-align:center}
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Two-Stage Recommender</h1>
+  <p class="sub">
+    PyTorch two-tower retrieval &rarr; LightGBM LambdaMART re-ranking, trained on
+    MovieLens-100K. The same retrieve-then-rank architecture used for product, music,
+    job and feed recommendations.
+    <strong>Inference runs entirely in your browser</strong> &mdash; there is no server.
+  </p>
+  <div class="links">
+    <a href="https://github.com/techi101/two-tower-recsys">Source on GitHub</a>
+    <a href="https://github.com/techi101/two-tower-recsys#readme">README &amp; results</a>
+  </div>
+</header>
+
+<div class="cards" id="cards"></div>
+
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true"  data-tab="rec">Recommend for a user</button>
+  <button role="tab" aria-selected="false" data-tab="sim">Similar movies</button>
+  <button role="tab" aria-selected="false" data-tab="how">How it works</button>
+</div>
+
+<div id="loading" class="loading">Loading model embeddings&hellip;</div>
+
+<section id="rec" hidden>
+  <select id="userSel"></select>
+  <div class="cols">
+    <div class="panel">
+      <h3>Watched (training history)</h3>
+      <ul id="hist"></ul>
+    </div>
+    <div class="panel">
+      <h3>Top 10 recommended</h3>
+      <ol id="recs"></ol>
+    </div>
+  </div>
+</section>
+
+<section id="sim" hidden>
+  <select id="movieSel"></select>
+  <div class="panel">
+    <h3>Nearest neighbours in embedding space</h3>
+    <ol id="sims"></ol>
+  </div>
+  <p class="sub" style="margin-top:14px">
+    Nothing here compares genres directly. Similarity emerges from <em>who watched what</em>
+    &mdash; which is what makes this collaborative filtering rather than content matching.
+  </p>
+</section>
+
+<section id="how" hidden class="prose">
+  <h2>The two stages</h2>
+  <p><strong>Stage 1 &mdash; retrieval (two-tower neural network).</strong>
+  The user and the movie are encoded <em>separately</em> into the same vector space, so a
+  score is just a dot product. That restriction is the whole point: because the towers never
+  interact until the final dot product, every item vector can be computed offline and stored
+  in a vector index. Serving becomes one nearest-neighbour lookup, independent of catalogue
+  size. It is also why this page works with no backend.</p>
+
+  <p><strong>Stage 2 &mdash; ranking (LightGBM LambdaMART).</strong>
+  Re-scores only the ~100 survivors using 28 features stage 1 structurally cannot represent,
+  chiefly per-genre user&times;item affinity crosses. LambdaRank optimises the <em>order</em>
+  of the list rather than per-item probabilities.</p>
+
+  <h2>The bug that mattered</h2>
+  <p>The first version <strong>lost to a popularity baseline</strong> (NDCG@10 0.0270 vs
+  0.0406) and recommended obscure arthouse films to someone whose history was
+  <em>Toy Story</em> and <em>Twelve Monkeys</em>.</p>
+  <p>Cause: in-batch negatives sample items in proportion to popularity, so blockbusters
+  appear as negatives in nearly every batch and the model learns to avoid them &mdash;
+  popularity bias, running backwards.</p>
+  <p>Fix: <strong>logQ correction</strong> &mdash; subtract each item's log sampling
+  probability from its logit, cancelling the over-sampling penalty.</p>
+  <pre>corrected_logit(i, j) = raw_logit(i, j) &minus; log Q(j)</pre>
+  <p>NDCG@10 went 0.0270 &rarr; 0.0601, <strong>+123%</strong>. Both variants are kept in
+  the code as a reproducible ablation.</p>
+
+  <h2>Results</h2>
+  <table id="resultsTable"></table>
+
+  <h2>Honest limitations</h2>
+  <ul class="b">
+    <li><strong>Candidate recall@100 is 0.52</strong> &mdash; for nearly half of users the
+    correct item never reaches stage 2. That is the pipeline's ceiling, and it means
+    improving retrieval would pay far more than further ranking work.</li>
+    <li><strong>Recall@50 drops after re-ranking</strong> (0.3657 &rarr; 0.3486). Expected:
+    the ranker optimises NDCG@10, so precision at the head is bought with depth.</li>
+    <li><strong>This page shows stage 1 only.</strong> The re-ranker needs per-candidate
+    feature computation; the numbers above are from the full offline pipeline, but the live
+    demo runs retrieval alone.</li>
+    <li>MovieLens-100K is small (938 users). These numbers would not transfer unchanged to
+    a production catalogue.</li>
+  </ul>
+</section>
+
+<footer>
+  Built by <a href="https://github.com/techi101" style="color:var(--accent)">techi101</a>.
+  Model trained offline in PyTorch; this page loads 837&nbsp;KB of frozen embeddings and
+  computes recommendations client-side.
+</footer>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let D = null;
+
+async function boot(){
+  const [metaRes, itemRes, userRes] = await Promise.all([
+    fetch('data/meta.json'),
+    fetch('data/item_vecs.bin'),
+    fetch('data/user_vecs.bin'),
+  ]);
+  const meta = await metaRes.json();
+  const itemVecs = new Float32Array(await itemRes.arrayBuffer());
+  const userVecs = new Float32Array(await userRes.arrayBuffer());
+  D = {...meta, itemVecs, userVecs};
+
+  renderCards();
+  renderResultsTable();
+  fillSelectors();
+  $('loading').hidden = true;
+  $('rec').hidden = false;
+  updateRecs();
+  updateSims();
+}
+
+/* score every item against one user: a single dot product per item.
+   This is the entire retrieval step -- the same operation a vector index
+   performs, just brute-forced because 1,447 items is tiny. */
+function scoreUser(u){
+  const {dim, n_items, itemVecs, userVecs} = D;
+  const out = new Float32Array(n_items);
+  const uo = u * dim;
+  for(let i = 0; i < n_items; i++){
+    let s = 0, io = i * dim;
+    for(let d = 0; d < dim; d++) s += itemVecs[io + d] * userVecs[uo + d];
+    out[i] = s;
+  }
+  return out;
+}
+
+function scoreItem(j){
+  const {dim, n_items, itemVecs} = D;
+  const out = new Float32Array(n_items);
+  const jo = j * dim;
+  for(let i = 0; i < n_items; i++){
+    let s = 0, io = i * dim;
+    for(let d = 0; d < dim; d++) s += itemVecs[io + d] * itemVecs[jo + d];
+    out[i] = s;
+  }
+  return out;
+}
+
+function topK(scores, k, exclude){
+  const idx = [];
+  for(let i = 0; i < scores.length; i++) if(!exclude.has(i)) idx.push(i);
+  idx.sort((a,b) => scores[b] - scores[a]);
+  return idx.slice(0, k);
+}
+
+function pct(a, b){ return ((a/b - 1) * 100).toFixed(0); }
+
+function renderCards(){
+  const m = D.metrics, base = m.popularity_baseline,
+        full = m.two_tower_logq_reranked, s1 = m.two_tower_logq;
+  const cards = [
+    ['NDCG@10',   full['NDCG@10'].toFixed(4),   pct(full['NDCG@10'], base['NDCG@10'])+'% vs baseline'],
+    ['Recall@10', full['Recall@10'].toFixed(4), pct(full['Recall@10'], base['Recall@10'])+'% vs baseline'],
+    ['Recall@50', s1['Recall@50'].toFixed(4),   pct(s1['Recall@50'], base['Recall@50'])+'% vs baseline'],
+    ['logQ correction', '+'+pct(s1['NDCG@10'], m.two_tower_no_logq['NDCG@10'])+'%', 'NDCG@10 lift'],
+  ];
+  $('cards').innerHTML = cards.map(([k,v,d]) =>
+    `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`
+  ).join('');
+}
+
+function renderResultsTable(){
+  const m = D.metrics;
+  const rows = [
+    ['Popularity baseline',      m.popularity_baseline,      false],
+    ['Two-tower, no logQ',       m.two_tower_no_logq,        false],
+    ['Two-tower + logQ',         m.two_tower_logq,           false],
+    ['+ LightGBM re-rank',       m.two_tower_logq_reranked,  true ],
+  ];
+  $('resultsTable').innerHTML =
+    '<tr><th>Model</th><th>Recall@10</th><th>Recall@50</th><th>NDCG@10</th><th>MRR</th></tr>' +
+    rows.map(([name, r, best]) =>
+      `<tr class="${best?'best':''}"><td>${name}</td><td>${r['Recall@10'].toFixed(4)}</td>`+
+      `<td>${r['Recall@50'].toFixed(4)}</td><td>${r['NDCG@10'].toFixed(4)}</td>`+
+      `<td>${r['MRR'].toFixed(4)}</td></tr>`).join('');
+}
+
+function fillSelectors(){
+  $('userSel').innerHTML = Array.from({length: D.n_users}, (_, u) =>
+    `<option value="${u}">user ${u} — ${D.history[u].length} movies watched</option>`).join('');
+
+  const order = D.titles.map((t,i) => [t,i]).sort((a,b) => a[0].localeCompare(b[0]));
+  $('movieSel').innerHTML = order.map(([t,i]) => `<option value="${i}">${t}</option>`).join('');
+
+  $('userSel').addEventListener('change', updateRecs);
+  $('movieSel').addEventListener('change', updateSims);
+}
+
+function updateRecs(){
+  const u = +$('userSel').value;
+  const seen = new Set(D.history[u]);
+  const scores = scoreUser(u);
+  const top = topK(scores, 10, seen);
+
+  $('hist').innerHTML = D.history[u].slice(0, 14).map(i =>
+    `<li><span class="title-cell">${D.titles[i]}</span></li>`).join('')
+    + (D.history[u].length > 14
+       ? `<li><span class="title-cell" style="color:var(--muted)">…and ${D.history[u].length-14} more</span></li>` : '');
+
+  $('recs').innerHTML = top.map((i, n) =>
+    `<li><span class="rank">${n+1}</span><span class="title-cell">${D.titles[i]}</span>`+
+    `<span class="score">${scores[i].toFixed(3)}</span></li>`).join('');
+}
+
+function updateSims(){
+  const j = +$('movieSel').value;
+  const scores = scoreItem(j);
+  const top = topK(scores, 10, new Set([j]));
+  $('sims').innerHTML = top.map((i, n) =>
+    `<li><span class="rank">${n+1}</span><span class="title-cell">${D.titles[i]}</span>`+
+    `<span class="score">cos ${scores[i].toFixed(3)}</span></li>`).join('');
+}
+
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b =>
+      b.setAttribute('aria-selected', String(b === btn)));
+    ['rec','sim','how'].forEach(id => { $(id).hidden = (id !== btn.dataset.tab); });
+  });
+});
+
+boot().catch(e => { $('loading').textContent = 'Failed to load model data: ' + e.message; });
+</script>
+</body>
+</html>
