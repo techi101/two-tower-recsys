@@ -1,5 +1,8 @@
 # Two-Stage Recommender: Two-Tower Retrieval + LightGBM Re-ranking
 
+**[▶ Live demo](https://techi101.github.io/two-tower-recsys/)** — runs entirely in your
+browser, no server.
+
 A production-shaped recommender built on MovieLens-100K, implementing the
 **retrieve-then-rank** architecture used by large-scale recommendation systems
 at YouTube, Spotify, Pinterest and most e-commerce platforms.
@@ -196,9 +199,18 @@ writes frozen embeddings to `artifacts/` (0.8 MB, committed), and serving is a
 matrix multiply against those. Separating the training stack from the serving
 stack is why the app cold-starts in seconds instead of installing CUDA wheels.
 
-Deploy on [Streamlit Community Cloud](https://share.streamlit.io): point it at
-this repo with `app.py` as the entrypoint. A `Dockerfile` is included for any
-container host.
+**Live at [techi101.github.io/two-tower-recsys](https://techi101.github.io/two-tower-recsys/)**,
+hosted as a static site with no backend at all. A two-tower model's inference
+path is a dot product between the user vector and the item matrix — the towers
+already did their work offline — so `docs/index.html` loads the exported
+embeddings and computes recommendations in JavaScript. That is a property of
+the architecture, not a trick: it is the same property that lets production
+systems serve two-tower retrieval from a vector index.
+
+The static demo runs **stage 1 only**; the re-ranker needs per-candidate
+feature computation. For the full pipeline, `app.py` runs on
+[Streamlit Community Cloud](https://share.streamlit.io) (point it at this repo,
+entrypoint `app.py`), and a `Dockerfile` is included for any container host.
 
 ---
 
