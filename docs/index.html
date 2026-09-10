@@ -3,91 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Two-Stage Recommender — Two-Tower Retrieval + LambdaMART</title>
-<meta name="description" content="PyTorch two-tower retrieval + LightGBM LambdaMART re-ranking on MovieLens-100K. Inference runs client-side.">
+<title>Movie Recommender — Two-Tower Retrieval</title>
+<meta name="description" content="Pick movies you like, get recommendations. PyTorch two-tower model running client-side in your browser.">
 <style>
   :root{
-    --bg:#fbfbfa; --panel:#fff; --ink:#16181d; --muted:#666c78;
-    --line:#e3e5e9; --accent:#2f5d8c; --accent-soft:#eef3f9; --good:#1f7a4d;
+    --bg:#faf9f7; --panel:#fff; --ink:#17191d; --muted:#6b7280; --line:#e5e7eb;
+    --accent:#2563a8; --soft:#eef4fa; --good:#15803d; --chip:#eef4fa; --shadow:0 1px 2px rgba(0,0,0,.05);
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme=light]){
-      --bg:#14161a; --panel:#1c1f25; --ink:#e8eaee; --muted:#98a0ac;
-      --line:#2b2f37; --accent:#7fb0e0; --accent-soft:#1e2833; --good:#5cc48d;
+      --bg:#131519; --panel:#1b1e24; --ink:#e9ebef; --muted:#98a1af; --line:#2a2e36;
+      --accent:#7db2e8; --soft:#1d2731; --good:#4ade80; --chip:#232b35; --shadow:none;
     }
   }
   *{box-sizing:border-box}
-  body{
-    margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  }
-  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
-  header{margin-bottom:22px}
-  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.3px}
-  .sub{color:var(--muted);margin:0 0 14px;max-width:70ch}
-  .links a{
-    color:var(--accent);text-decoration:none;font-size:14px;
-    border:1px solid var(--line);padding:5px 11px;border-radius:6px;
-    display:inline-block;margin-right:8px;background:var(--panel);
-  }
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:30px 20px 70px}
+  a{color:var(--accent)}
+
+  header h1{font-size:27px;margin:0 0 6px;letter-spacing:-.4px}
+  .sub{color:var(--muted);margin:0 0 14px;max-width:68ch}
+  .links a{text-decoration:none;font-size:13.5px;border:1px solid var(--line);
+    padding:5px 11px;border-radius:6px;display:inline-block;margin:0 6px 6px 0;background:var(--panel)}
   .links a:hover{border-color:var(--accent)}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:20px 0 24px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
-  .card .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
-  .card .v{font-size:21px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
-  .card .d{font-size:12.5px;color:var(--good);margin-top:2px}
-
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
-  .tabs button{
-    background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
-    padding:9px 14px;font-size:14.5px;cursor:pointer;font-family:inherit;
-  }
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:22px 0 20px;flex-wrap:wrap}
+  .tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    padding:9px 15px;font-size:14.5px;cursor:pointer;font-family:inherit}
   .tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 
-  select{
-    width:100%;padding:9px 11px;font:inherit;font-size:14.5px;border:1px solid var(--line);
-    border-radius:7px;background:var(--panel);color:var(--ink);margin-bottom:16px;
-  }
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-  @media(max-width:680px){.cols{grid-template-columns:1fr}}
-  h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 9px}
-  ol,ul{margin:0;padding-left:0;list-style:none}
-  li{
-    padding:7px 10px;border-bottom:1px solid var(--line);font-size:14px;
-    display:flex;justify-content:space-between;gap:12px;align-items:baseline;
-  }
-  li:last-child{border-bottom:0}
-  .rank{color:var(--muted);font-variant-numeric:tabular-nums;min-width:22px}
-  .score{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .title-cell{flex:1}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:15px 16px;box-shadow:var(--shadow)}
+  .panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);
+    margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .panel h3 span{text-transform:none;letter-spacing:0;font-size:12.5px}
+
+  input[type=search]{width:100%;padding:10px 12px;font:inherit;font-size:14.5px;
+    border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:10px}
+  input[type=search]:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+
+  .list{max-height:390px;overflow-y:auto;margin:0;padding:0;list-style:none}
+  .list li{display:flex;gap:10px;align-items:center;padding:7px 8px;border-radius:7px;
+    cursor:pointer;border:1px solid transparent}
+  .list li:hover{background:var(--soft);border-color:var(--line)}
+  .list li.picked{background:var(--soft)}
+  .mv{flex:1;min-width:0}
+  .mv .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mv .g{font-size:11.5px;color:var(--muted);margin-top:1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .add{color:var(--muted);font-size:18px;line-height:1;flex-shrink:0;width:18px;text-align:center}
+  .list li:hover .add{color:var(--accent)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:30px}
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:20px;
+    padding:4px 9px 4px 11px;font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .chip button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;
+    line-height:1;padding:0;font-family:inherit}
+  .chip button:hover{color:#c0392b}
+
+  ol.recs{margin:0;padding:0;list-style:none;counter-reset:r}
+  ol.recs li{display:flex;gap:11px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+  ol.recs li:last-child{border-bottom:0}
+  .rk{color:var(--muted);font-variant-numeric:tabular-nums;min-width:20px;font-size:13px}
+  .sc{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .empty{color:var(--muted);font-size:14px;padding:26px 4px;text-align:center;line-height:1.6}
+  .btn{background:var(--soft);border:1px solid var(--line);color:var(--accent);border-radius:7px;
+    padding:6px 11px;font:inherit;font-size:13px;cursor:pointer;margin:0 6px 6px 0}
+  .btn:hover{border-color:var(--accent)}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:18px 0 4px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .card .v{font-size:20px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
+  .card .d{font-size:12px;color:var(--good);margin-top:2px}
 
   .prose{max-width:72ch}
   .prose h2{font-size:17px;margin:26px 0 8px}
-  .prose p,.prose li.p{color:var(--ink);margin:0 0 11px}
-  .prose ul.b{list-style:disc;padding-left:20px;margin:0 0 12px}
-  .prose ul.b li{display:list-item;border:0;padding:2px 0}
-  code{background:var(--accent-soft);padding:1.5px 5px;border-radius:4px;font-size:13px}
-  pre{background:var(--accent-soft);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+  .prose p{margin:0 0 11px}
+  .prose ul{padding-left:20px;margin:0 0 12px}
+  .prose li{margin-bottom:5px}
+  code{background:var(--soft);padding:1.5px 5px;border-radius:4px;font-size:13px}
+  pre{background:var(--soft);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
   table{border-collapse:collapse;width:100%;font-size:13.5px;margin:6px 0 14px}
-  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}
   tr.best td{font-weight:650}
-  .loading{color:var(--muted);padding:40px 0;text-align:center}
-  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .loading{color:var(--muted);padding:50px 0;text-align:center}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <h1>Two-Stage Recommender</h1>
+  <h1>Movie Recommender</h1>
   <p class="sub">
-    PyTorch two-tower retrieval &rarr; LightGBM LambdaMART re-ranking, trained on
-    MovieLens-100K. The same retrieve-then-rank architecture used for product, music,
-    job and feed recommendations.
-    <strong>Inference runs entirely in your browser</strong> &mdash; there is no server.
+    Pick a few films you like and the model builds a taste vector from them, then ranks all
+    1,447 movies against it. A PyTorch two-tower model trained on MovieLens-100K —
+    <strong>running entirely in your browser</strong>, no server, no API call.
   </p>
   <div class="links">
     <a href="https://github.com/techi101/two-tower-recsys">Source on GitHub</a>
@@ -95,230 +112,344 @@
   </div>
 </header>
 
-<div class="cards" id="cards"></div>
-
 <div class="tabs" role="tablist">
-  <button role="tab" aria-selected="true"  data-tab="rec">Recommend for a user</button>
+  <button role="tab" aria-selected="true"  data-tab="pick">Recommend for me</button>
   <button role="tab" aria-selected="false" data-tab="sim">Similar movies</button>
   <button role="tab" aria-selected="false" data-tab="how">How it works</button>
 </div>
 
-<div id="loading" class="loading">Loading model embeddings&hellip;</div>
+<div id="loading" class="loading">Loading model…</div>
 
-<section id="rec" hidden>
-  <select id="userSel"></select>
-  <div class="cols">
+<!-- ------------------------------------------------ pick your own -->
+<section id="pick" hidden>
+  <div class="grid">
     <div class="panel">
-      <h3>Watched (training history)</h3>
-      <ul id="hist"></ul>
+      <h3>1 · Pick movies you like <span id="pickCount"></span></h3>
+      <input type="search" id="q" placeholder="Search 1,447 movies — try &ldquo;Star Wars&rdquo;, &ldquo;Fargo&rdquo;, &ldquo;Toy Story&rdquo;…" autocomplete="off">
+      <div class="chips" id="chips"></div>
+      <ul class="list" id="results"></ul>
     </div>
+
     <div class="panel">
-      <h3>Top 10 recommended</h3>
-      <ol id="recs"></ol>
+      <h3>2 · Recommended for you</h3>
+      <div id="recsBox"></div>
     </div>
+  </div>
+
+  <div style="margin-top:14px">
+    <span style="color:var(--muted);font-size:13px;margin-right:8px">Try a preset:</span>
+    <button class="btn" data-preset="scifi">Sci-fi fan</button>
+    <button class="btn" data-preset="classic">Classic drama</button>
+    <button class="btn" data-preset="family">Family / animation</button>
+    <button class="btn" data-preset="dark">Dark &amp; violent</button>
+    <button class="btn" id="clearBtn">Clear</button>
   </div>
 </section>
 
+<!-- ------------------------------------------------ similar items -->
 <section id="sim" hidden>
-  <select id="movieSel"></select>
-  <div class="panel">
-    <h3>Nearest neighbours in embedding space</h3>
-    <ol id="sims"></ol>
+  <div class="grid">
+    <div class="panel">
+      <h3>Pick a movie</h3>
+      <input type="search" id="q2" placeholder="Search movies…" autocomplete="off">
+      <ul class="list" id="results2"></ul>
+    </div>
+    <div class="panel">
+      <h3>Nearest neighbours in embedding space <span id="simFor"></span></h3>
+      <div id="simsBox"><div class="empty">Choose a movie to see what sits closest to it.</div></div>
+    </div>
   </div>
   <p class="sub" style="margin-top:14px">
-    Nothing here compares genres directly. Similarity emerges from <em>who watched what</em>
-    &mdash; which is what makes this collaborative filtering rather than content matching.
+    Nothing here compares genres directly — similarity emerges from <em>who watched what</em>.
+    That is what makes it collaborative filtering rather than content matching.
   </p>
 </section>
 
+<!-- ------------------------------------------------ explanation -->
 <section id="how" hidden class="prose">
-  <h2>The two stages</h2>
-  <p><strong>Stage 1 &mdash; retrieval (two-tower neural network).</strong>
-  The user and the movie are encoded <em>separately</em> into the same vector space, so a
-  score is just a dot product. That restriction is the whole point: because the towers never
-  interact until the final dot product, every item vector can be computed offline and stored
-  in a vector index. Serving becomes one nearest-neighbour lookup, independent of catalogue
-  size. It is also why this page works with no backend.</p>
+  <div class="cards" id="cards"></div>
 
-  <p><strong>Stage 2 &mdash; ranking (LightGBM LambdaMART).</strong>
-  Re-scores only the ~100 survivors using 28 features stage 1 structurally cannot represent,
-  chiefly per-genre user&times;item affinity crosses. LambdaRank optimises the <em>order</em>
-  of the list rather than per-item probabilities.</p>
+  <h2>What happens when you click a movie</h2>
+  <p>Every movie has a learned 64-dimensional vector. When you pick some films, the page
+  averages their vectors and pushes that average through the <strong>user tower</strong> — a
+  small two-layer network whose weights are shipped with this page — producing one vector
+  that represents your taste. Every movie is then scored by a dot product against it, and the
+  top 10 are shown.</p>
+  <pre>user_vector = normalise( user_mlp( mean( item_vectors[your picks] ) ) )
+score(movie)  = user_vector · item_vector[movie]</pre>
+
+  <h2>Why the user tower reads history, not a user ID</h2>
+  <p>The obvious design is <code>nn.Embedding(n_users, dim)</code> — one learned vector per
+  user ID. It trains fine and scores fine, and it is <strong>useless in production</strong>:
+  it can only represent users who existed at training time. A new signup has no row in that
+  table, and neither do you.</p>
+  <p>The first version of this project made exactly that mistake, which is why its demo could
+  only replay pre-existing users like &ldquo;user 437&rdquo;. Rebuilding the user tower to encode
+  the <em>set of items you liked</em> fixed it — and scored better too, improving NDCG@10 by
+  around 19% over the ID-based version, because item co-occurrence generalises where a
+  per-user parameter overfits.</p>
+
+  <h2>The two stages — and why only one of them shipped</h2>
+  <p><strong>Stage 1 — retrieval.</strong> User and item are encoded <em>separately</em> into
+  the same space, so scoring is one dot product. That restriction is the point: item vectors
+  are computed offline and served from a vector index, so retrieval cost is independent of
+  catalogue size. It is also why this page needs no backend at all.</p>
+  <p><strong>Stage 2 — ranking (LightGBM LambdaMART).</strong> Re-scores only the ~100
+  survivors using 28 features stage 1 structurally cannot represent, chiefly per-genre
+  user×item crosses. LambdaRank optimises the <em>order</em> of the list rather than
+  per-item probabilities.</p>
+
+  <p><strong>It made things worse, so it is not in the serving path.</strong> Measured across
+  seeds, re-ranking cost roughly 19% NDCG@10 against retrieval alone. Two causes look most
+  likely: the ranker trains on only ~938 lists with one positive each, which is very little
+  signal for 28 features; and its strongest features are popularity and quality signals,
+  which drag predictions back toward the popularity baseline that stage 1 already beats by a
+  wide margin.</p>
+  <p>An earlier version of this project reported the re-ranker <em>helping</em> by 5.7%. That
+  number came from a weaker ID-based retrieval stage, a training run whose early stopping was
+  reading the test set, and multithreaded training that was not reproducible. All three are
+  fixed above, and the honest result reversed sign. It is kept in the repository and reported
+  here rather than quietly deleted, because the measurement is the point.</p>
 
   <h2>The bug that mattered</h2>
-  <p>The first version <strong>lost to a popularity baseline</strong> (NDCG@10 0.0270 vs
-  0.0406) and recommended obscure arthouse films to someone whose history was
-  <em>Toy Story</em> and <em>Twelve Monkeys</em>.</p>
-  <p>Cause: in-batch negatives sample items in proportion to popularity, so blockbusters
-  appear as negatives in nearly every batch and the model learns to avoid them &mdash;
-  popularity bias, running backwards.</p>
-  <p>Fix: <strong>logQ correction</strong> &mdash; subtract each item's log sampling
-  probability from its logit, cancelling the over-sampling penalty.</p>
-  <pre>corrected_logit(i, j) = raw_logit(i, j) &minus; log Q(j)</pre>
-  <p>NDCG@10 went 0.0270 &rarr; 0.0601, <strong>+123%</strong>. Both variants are kept in
-  the code as a reproducible ablation.</p>
+  <p>The first working version <strong>lost to a popularity baseline</strong> and recommended
+  obscure arthouse films to everyone. In-batch negatives sample items in proportion to
+  popularity, so blockbusters appear as negatives in nearly every batch and the model learns
+  to avoid them — popularity bias, running backwards.</p>
+  <p>Fix: <strong>logQ correction</strong> — subtract each item's log sampling probability
+  from its logit, cancelling the over-sampling penalty:</p>
+  <pre>corrected_logit(i, j) = raw_logit(i, j) − log Q(j)</pre>
+  <p>Applied at training time only. Both variants are kept in the code as a reproducible
+  ablation.</p>
 
   <h2>Results</h2>
+  <p>Chronological leave-one-out, full catalogue ranked, seen items masked.
+  <span id="seedNote"></span></p>
   <table id="resultsTable"></table>
 
   <h2>Honest limitations</h2>
-  <ul class="b">
-    <li><strong>Candidate recall@100 is 0.52</strong> &mdash; for nearly half of users the
-    correct item never reaches stage 2. That is the pipeline's ceiling, and it means
-    improving retrieval would pay far more than further ranking work.</li>
-    <li><strong>Recall@50 drops after re-ranking</strong> (0.3657 &rarr; 0.3486). Expected:
-    the ranker optimises NDCG@10, so precision at the head is bought with depth.</li>
-    <li><strong>This page shows stage 1 only.</strong> The re-ranker needs per-candidate
-    feature computation; the numbers above are from the full offline pipeline, but the live
-    demo runs retrieval alone.</li>
-    <li>MovieLens-100K is small (938 users). These numbers would not transfer unchanged to
-    a production catalogue.</li>
+  <ul>
+    <li><strong>This page runs stage 1 only.</strong> The LambdaMART re-ranker needs
+    per-candidate feature computation; the table above is from the full offline pipeline.</li>
+    <li><strong>Candidate recall@100 is ~0.54</strong> — for nearly half of users the correct
+    item never reaches stage 2. That ceiling means improving retrieval would pay far more
+    than further ranking work.</li>
+    <li><strong>The user vector is order-blind.</strong> Averaging item vectors cannot tell
+    that you watched horror last week and comedies last year. A sequence model
+    (GRU4Rec, SASRec) is the upgrade path.</li>
+    <li><strong>MovieLens-100K is small</strong> and stops in 1998, so there is nothing
+    recent to recommend. These numbers would not transfer unchanged to a production
+    catalogue.</li>
+    <li>Training had to be pinned to a single thread to be reproducible — multithreaded
+    float reduction was moving NDCG@10 by ±5% across identically seeded runs.</li>
   </ul>
 </section>
 
 <footer>
-  Built by <a href="https://github.com/techi101" style="color:var(--accent)">techi101</a>.
-  Model trained offline in PyTorch; this page loads 837&nbsp;KB of frozen embeddings and
-  computes recommendations client-side.
+  Built by <a href="https://github.com/techi101">techi101</a>. Model trained offline in
+  PyTorch; this page loads the frozen item embeddings plus the user tower's weights and
+  computes everything client-side.
 </footer>
-
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-let D = null;
+let D = null, picked = [], simChoice = null;
+
+const PRESETS = {
+  scifi:   ["Star Wars", "Empire Strikes Back", "Return of the Jedi", "Blade Runner", "Alien"],
+  classic: ["Casablanca", "Citizen Kane", "Godfather, The", "Chinatown", "Rear Window"],
+  family:  ["Toy Story", "Lion King, The", "Aladdin", "Beauty and the Beast", "Babe"],
+  dark:    ["Pulp Fiction", "Fargo", "Seven", "Silence of the Lambs, The", "Reservoir Dogs"],
+};
 
 async function boot(){
-  const [metaRes, itemRes, userRes] = await Promise.all([
-    fetch('data/meta.json'),
-    fetch('data/item_vecs.bin'),
-    fetch('data/user_vecs.bin'),
+  const [mRes, iRes] = await Promise.all([
+    fetch('data/meta.json'), fetch('data/item_vecs.bin')
   ]);
-  const meta = await metaRes.json();
-  const itemVecs = new Float32Array(await itemRes.arrayBuffer());
-  const userVecs = new Float32Array(await userRes.arrayBuffer());
-  D = {...meta, itemVecs, userVecs};
+  const meta = await mRes.json();
+  D = {...meta, itemVecs: new Float32Array(await iRes.arrayBuffer())};
 
-  renderCards();
-  renderResultsTable();
-  fillSelectors();
-  $('loading').hidden = true;
-  $('rec').hidden = false;
-  updateRecs();
-  updateSims();
+  // flatten the user MLP weights once
+  D.W0 = D.user_mlp.w0; D.B0 = D.user_mlp.b0;
+  D.W2 = D.user_mlp.w2; D.B2 = D.user_mlp.b2;
+
+  D.order = D.titles.map((t,i)=>[t,i]).sort((a,b)=>b[1]===a[1]?0:D.popularity[b[1]]-D.popularity[a[1]]);
+
+  renderCards(); renderTable();
+  $('loading').hidden = true; $('pick').hidden = false;
+  search(''); search2('');
+  renderPicked();
+
+  $('q').addEventListener('input', e => search(e.target.value));
+  $('q2').addEventListener('input', e => search2(e.target.value));
+  $('clearBtn').addEventListener('click', () => { picked = []; renderPicked(); search($('q').value); });
+  document.querySelectorAll('[data-preset]').forEach(b =>
+    b.addEventListener('click', () => applyPreset(b.dataset.preset)));
 }
 
-/* score every item against one user: a single dot product per item.
-   This is the entire retrieval step -- the same operation a vector index
-   performs, just brute-forced because 1,447 items is tiny. */
-function scoreUser(u){
-  const {dim, n_items, itemVecs, userVecs} = D;
-  const out = new Float32Array(n_items);
-  const uo = u * dim;
-  for(let i = 0; i < n_items; i++){
-    let s = 0, io = i * dim;
-    for(let d = 0; d < dim; d++) s += itemVecs[io + d] * userVecs[uo + d];
-    out[i] = s;
+/* ---------- the model, in the browser ---------- */
+
+function itemVec(i){ return D.itemVecs.subarray(i*D.dim, (i+1)*D.dim); }
+
+/* user tower: mean of picked item vectors -> Linear -> ReLU -> Linear -> L2 norm.
+   This is the whole reason the page can serve a visitor the model never saw. */
+function userVector(items){
+  const d = D.dim, mean = new Float32Array(d);
+  for(const it of items){ const v = itemVec(it); for(let k=0;k<d;k++) mean[k]+=v[k]; }
+  for(let k=0;k<d;k++) mean[k] /= items.length;
+
+  const h = new Float32Array(D.B0.length);
+  for(let r=0;r<h.length;r++){
+    let s = D.B0[r], row = D.W0[r];
+    for(let k=0;k<d;k++) s += row[k]*mean[k];
+    h[r] = s > 0 ? s : 0;                       // ReLU
+  }
+  const out = new Float32Array(d);
+  for(let r=0;r<d;r++){
+    let s = D.B2[r], row = D.W2[r];
+    for(let k=0;k<h.length;k++) s += row[k]*h[k];
+    out[r] = s;
+  }
+  let n = 0; for(let k=0;k<d;k++) n += out[k]*out[k];
+  n = Math.sqrt(n) || 1;
+  for(let k=0;k<d;k++) out[k] /= n;
+  return out;
+}
+
+function scoreAgainst(vec){
+  const {dim, n_items, itemVecs} = D, out = new Float32Array(n_items);
+  for(let i=0;i<n_items;i++){
+    let s=0, off=i*dim;
+    for(let k=0;k<dim;k++) s += itemVecs[off+k]*vec[k];
+    out[i]=s;
   }
   return out;
 }
 
-function scoreItem(j){
-  const {dim, n_items, itemVecs} = D;
-  const out = new Float32Array(n_items);
-  const jo = j * dim;
-  for(let i = 0; i < n_items; i++){
-    let s = 0, io = i * dim;
-    for(let d = 0; d < dim; d++) s += itemVecs[io + d] * itemVecs[jo + d];
-    out[i] = s;
+/* ---------- rendering ---------- */
+
+const label = i => `${D.titles[i]}`;
+const genreStr = i => (D.genres[i] || []).join(' · ') || '—';
+
+function movieRow(i, isPicked){
+  return `<li data-i="${i}" class="${isPicked?'picked':''}">
+    <div class="mv"><div class="t">${label(i)}</div><div class="g">${genreStr(i)}</div></div>
+    <div class="add">${isPicked?'✓':'+'}</div></li>`;
+}
+
+function search(term){
+  const t = term.trim().toLowerCase();
+  const hits = (t ? D.order.filter(([title]) => title.toLowerCase().includes(t)) : D.order).slice(0,120);
+  $('results').innerHTML = hits.length
+    ? hits.map(([,i]) => movieRow(i, picked.includes(i))).join('')
+    : `<div class="empty">No movie matches “${term}”.</div>`;
+  $('results').querySelectorAll('li').forEach(li =>
+    li.addEventListener('click', () => toggle(+li.dataset.i)));
+}
+
+function search2(term){
+  const t = term.trim().toLowerCase();
+  const hits = (t ? D.order.filter(([title]) => title.toLowerCase().includes(t)) : D.order).slice(0,120);
+  $('results2').innerHTML = hits.map(([,i]) => movieRow(i, i===simChoice)).join('');
+  $('results2').querySelectorAll('li').forEach(li =>
+    li.addEventListener('click', () => { simChoice = +li.dataset.i; search2($('q2').value); renderSims(); }));
+}
+
+function toggle(i){
+  const at = picked.indexOf(i);
+  if(at >= 0) picked.splice(at,1); else picked.push(i);
+  renderPicked(); search($('q').value);
+}
+
+function applyPreset(key){
+  picked = [];
+  for(const needle of PRESETS[key]){
+    const hit = D.order.find(([t]) => t.toLowerCase().includes(needle.toLowerCase()));
+    if(hit) picked.push(hit[1]);
   }
-  return out;
+  renderPicked(); search($('q').value);
 }
 
-function topK(scores, k, exclude){
-  const idx = [];
-  for(let i = 0; i < scores.length; i++) if(!exclude.has(i)) idx.push(i);
-  idx.sort((a,b) => scores[b] - scores[a]);
-  return idx.slice(0, k);
+function renderPicked(){
+  $('pickCount').textContent = picked.length ? `${picked.length} selected` : '';
+  $('chips').innerHTML = picked.map(i =>
+    `<span class="chip">${label(i)}<button data-i="${i}" aria-label="remove">×</button></span>`).join('');
+  $('chips').querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => toggle(+b.dataset.i)));
+  renderRecs();
 }
 
-function pct(a, b){ return ((a/b - 1) * 100).toFixed(0); }
+function renderRecs(){
+  if(!picked.length){
+    $('recsBox').innerHTML = `<div class="empty">Pick one or more movies on the left.<br>
+      Recommendations appear here instantly.</div>`;
+    return;
+  }
+  const scores = scoreAgainst(userVector(picked));
+  const chosen = new Set(picked);
+  const top = Array.from(scores.keys())
+    .filter(i => !chosen.has(i))
+    .sort((a,b) => scores[b]-scores[a]).slice(0,10);
 
+  $('recsBox').innerHTML = `<ol class="recs">` + top.map((i,n) =>
+    `<li><span class="rk">${n+1}</span>
+      <div class="mv"><div class="t">${label(i)}</div><div class="g">${genreStr(i)}</div></div>
+      <span class="sc">${scores[i].toFixed(3)}</span></li>`).join('') + `</ol>`;
+}
+
+function renderSims(){
+  if(simChoice == null) return;
+  $('simFor').textContent = label(simChoice);
+  const scores = scoreAgainst(itemVec(simChoice));
+  const top = Array.from(scores.keys())
+    .filter(i => i !== simChoice)
+    .sort((a,b) => scores[b]-scores[a]).slice(0,10);
+  $('simsBox').innerHTML = `<ol class="recs">` + top.map((i,n) =>
+    `<li><span class="rk">${n+1}</span>
+      <div class="mv"><div class="t">${label(i)}</div><div class="g">${genreStr(i)}</div></div>
+      <span class="sc">cos ${scores[i].toFixed(3)}</span></li>`).join('') + `</ol>`;
+}
+
+function pct(a,b){ return ((a/b-1)*100).toFixed(0); }
+
+/* Cards report the SHIPPED configuration -- two-tower + logQ, retrieval only.
+   The re-ranker measured worse and is not in the serving path, so quoting its
+   numbers up here would misrepresent what this page actually runs. */
 function renderCards(){
   const m = D.metrics, base = m.popularity_baseline,
-        full = m.two_tower_logq_reranked, s1 = m.two_tower_logq;
-  const cards = [
-    ['NDCG@10',   full['NDCG@10'].toFixed(4),   pct(full['NDCG@10'], base['NDCG@10'])+'% vs baseline'],
-    ['Recall@10', full['Recall@10'].toFixed(4), pct(full['Recall@10'], base['Recall@10'])+'% vs baseline'],
-    ['Recall@50', s1['Recall@50'].toFixed(4),   pct(s1['Recall@50'], base['Recall@50'])+'% vs baseline'],
-    ['logQ correction', '+'+pct(s1['NDCG@10'], m.two_tower_no_logq['NDCG@10'])+'%', 'NDCG@10 lift'],
-  ];
-  $('cards').innerHTML = cards.map(([k,v,d]) =>
-    `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`
-  ).join('');
+        s1 = m.two_tower_logq, rr = m.two_tower_logq_reranked;
+  $('cards').innerHTML = [
+    ['NDCG@10',   s1['NDCG@10'].toFixed(4),   pct(s1['NDCG@10'],base['NDCG@10'])+'% vs baseline'],
+    ['Recall@10', s1['Recall@10'].toFixed(4), pct(s1['Recall@10'],base['Recall@10'])+'% vs baseline'],
+    ['Recall@50', s1['Recall@50'].toFixed(4), pct(s1['Recall@50'],base['Recall@50'])+'% vs baseline'],
+    ['logQ correction','+'+pct(s1['NDCG@10'],m.two_tower_no_logq['NDCG@10'])+'%','NDCG@10 lift'],
+  ].map(([k,v,d]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
 }
 
-function renderResultsTable(){
+function renderTable(){
   const m = D.metrics;
   const rows = [
-    ['Popularity baseline',      m.popularity_baseline,      false],
-    ['Two-tower, no logQ',       m.two_tower_no_logq,        false],
-    ['Two-tower + logQ',         m.two_tower_logq,           false],
-    ['+ LightGBM re-rank',       m.two_tower_logq_reranked,  true ],
+    ['Popularity baseline', m.popularity_baseline, false],
+    ['Two-tower, no logQ',  m.two_tower_no_logq,   false],
+    ['Two-tower + logQ',    m.two_tower_logq,      false],
+    ['+ LightGBM re-rank',  m.two_tower_logq_reranked, true],
   ];
   $('resultsTable').innerHTML =
     '<tr><th>Model</th><th>Recall@10</th><th>Recall@50</th><th>NDCG@10</th><th>MRR</th></tr>' +
-    rows.map(([name, r, best]) =>
-      `<tr class="${best?'best':''}"><td>${name}</td><td>${r['Recall@10'].toFixed(4)}</td>`+
-      `<td>${r['Recall@50'].toFixed(4)}</td><td>${r['NDCG@10'].toFixed(4)}</td>`+
-      `<td>${r['MRR'].toFixed(4)}</td></tr>`).join('');
+    rows.map(([n,r,b]) => `<tr class="${b?'best':''}"><td>${n}</td>`+
+      `<td>${r['Recall@10'].toFixed(4)}</td><td>${r['Recall@50'].toFixed(4)}</td>`+
+      `<td>${r['NDCG@10'].toFixed(4)}</td><td>${r['MRR'].toFixed(4)}</td></tr>`).join('');
 }
 
-function fillSelectors(){
-  $('userSel').innerHTML = Array.from({length: D.n_users}, (_, u) =>
-    `<option value="${u}">user ${u} — ${D.history[u].length} movies watched</option>`).join('');
-
-  const order = D.titles.map((t,i) => [t,i]).sort((a,b) => a[0].localeCompare(b[0]));
-  $('movieSel').innerHTML = order.map(([t,i]) => `<option value="${i}">${t}</option>`).join('');
-
-  $('userSel').addEventListener('change', updateRecs);
-  $('movieSel').addEventListener('change', updateSims);
-}
-
-function updateRecs(){
-  const u = +$('userSel').value;
-  const seen = new Set(D.history[u]);
-  const scores = scoreUser(u);
-  const top = topK(scores, 10, seen);
-
-  $('hist').innerHTML = D.history[u].slice(0, 14).map(i =>
-    `<li><span class="title-cell">${D.titles[i]}</span></li>`).join('')
-    + (D.history[u].length > 14
-       ? `<li><span class="title-cell" style="color:var(--muted)">…and ${D.history[u].length-14} more</span></li>` : '');
-
-  $('recs').innerHTML = top.map((i, n) =>
-    `<li><span class="rank">${n+1}</span><span class="title-cell">${D.titles[i]}</span>`+
-    `<span class="score">${scores[i].toFixed(3)}</span></li>`).join('');
-}
-
-function updateSims(){
-  const j = +$('movieSel').value;
-  const scores = scoreItem(j);
-  const top = topK(scores, 10, new Set([j]));
-  $('sims').innerHTML = top.map((i, n) =>
-    `<li><span class="rank">${n+1}</span><span class="title-cell">${D.titles[i]}</span>`+
-    `<span class="score">cos ${scores[i].toFixed(3)}</span></li>`).join('');
-}
-
-document.querySelectorAll('.tabs button').forEach(btn => {
+document.querySelectorAll('.tabs button').forEach(btn =>
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach(b =>
-      b.setAttribute('aria-selected', String(b === btn)));
-    ['rec','sim','how'].forEach(id => { $(id).hidden = (id !== btn.dataset.tab); });
-  });
-});
+      b.setAttribute('aria-selected', String(b===btn)));
+    ['pick','sim','how'].forEach(id => { $(id).hidden = (id !== btn.dataset.tab); });
+  }));
 
-boot().catch(e => { $('loading').textContent = 'Failed to load model data: ' + e.message; });
+boot().catch(e => { $('loading').textContent = 'Failed to load model: ' + e.message; });
 </script>
 </body>
 </html>

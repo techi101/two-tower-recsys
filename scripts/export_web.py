@@ -34,23 +34,38 @@ def main():
     metrics = json.loads((ART / "metrics.json").read_text())
 
     item_vecs = z["item_vecs"].astype(np.float32)
-    user_vecs = z["user_vecs"].astype(np.float32)
 
     # Raw little-endian float32, read straight into a Float32Array in JS.
     (OUT / "item_vecs.bin").write_bytes(item_vecs.tobytes())
-    (OUT / "user_vecs.bin").write_bytes(user_vecs.tobytes())
 
     titles = meta["item_titles"]
-    history = meta["train_items_by_user"]
+    counts = np.asarray(meta["train_item_counts"], dtype=int)
+
+    GENRE_NAMES = [
+        "unknown", "Action", "Adventure", "Animation", "Children", "Comedy",
+        "Crime", "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror",
+        "Musical", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western",
+    ]
+    genres = z["genres"]
+    genre_lists = [[GENRE_NAMES[g] for g in np.nonzero(row)[0]
+                    if GENRE_NAMES[g] != "unknown"] for row in genres]
 
     payload = {
-        "n_users": int(meta["n_users"]),
         "n_items": int(meta["n_items"]),
         "dim": int(item_vecs.shape[1]),
-        # index-aligned so JS can use position, not a string key lookup
+        # index-aligned so JS uses position, not a string key lookup
         "titles": [titles.get(i, f"item {i}") for i in range(meta["n_items"])],
-        "history": [sorted(int(x) for x in history.get(u, []))
-                    for u in range(meta["n_users"])],
+        "genres": genre_lists,
+        "year": [int(y) for y in z["item_year"]],
+        "popularity": counts.tolist(),
+        # The user tower's weights. The browser runs this two-layer MLP on the
+        # mean of whatever items a visitor picks, producing a user vector for
+        # someone the model never trained on. Exporting it is what turns a
+        # fixed set of demo users into a real recommender.
+        "user_mlp": {
+            "w0": z["user_mlp_w0"].tolist(), "b0": z["user_mlp_b0"].tolist(),
+            "w2": z["user_mlp_w2"].tolist(), "b2": z["user_mlp_b2"].tolist(),
+        },
         "metrics": metrics,
     }
     (OUT / "meta.json").write_text(json.dumps(payload, separators=(",", ":")))

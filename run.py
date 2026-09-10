@@ -126,15 +126,31 @@ def save_artifacts(ds, model, rr, tt_metrics, pop_metrics, nolq_metrics):
     out = Path("artifacts")
     out.mkdir(exist_ok=True)
 
+    from two_tower import history_matrix
+
     with torch.no_grad():
-        item_vecs = model.encode_item(
-            torch.arange(ds.n_items), torch.from_numpy(ds.genres)).numpy()
-        user_vecs = model.encode_user(torch.arange(ds.n_users)).numpy()
+        genres = torch.from_numpy(ds.genres)
+        item_vecs = model.all_item_vectors(genres)
+        H = history_matrix(ds)
+        user_means = (H @ item_vecs) / H.sum(1, keepdim=True).clamp(min=1)
+        user_vecs = model.encode_user_from_mean(user_means).numpy()
+        item_vecs = item_vecs.numpy()
+
+        # The user tower's weights, so the BROWSER can encode a visitor's
+        # picks. It is two Linear layers with a ReLU between -- small enough
+        # to re-implement in a few lines of JavaScript, which is what makes
+        # the live demo able to serve a user the model never trained on.
+        sd = model.user_mlp.state_dict()
+        user_mlp = {
+            "w0": sd["0.weight"].numpy(), "b0": sd["0.bias"].numpy(),
+            "w2": sd["2.weight"].numpy(), "b2": sd["2.bias"].numpy(),
+        }
 
     np.savez_compressed(
         out / "embeddings.npz", item_vecs=item_vecs, user_vecs=user_vecs,
         genres=ds.genres, item_year=ds.item_year,
         item_mean_rating=ds.item_mean_rating, item_n_ratings=ds.item_n_ratings,
+        **{f"user_mlp_{k}": v for k, v in user_mlp.items()},
     )
     with open(out / "meta.pkl", "wb") as f:
         pickle.dump({

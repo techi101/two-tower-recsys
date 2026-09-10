@@ -155,6 +155,27 @@ def train_reranker(ds, model, device="cpu", verbose=True):
     Xte, yte, gte, ev_users, ev_items = build_features(
         ds, eval_scores, ds.test.user.to_numpy(), ds.test.item.to_numpy())
 
+    # --- early stopping must NOT see the test set --------------------------
+    # Choosing the number of trees by watching test NDCG is a leak: the model
+    # is then tuned on the data it is scored on. We carve an early-stopping
+    # split out of the TRAINING lists instead. Lists, not rows -- a user's
+    # candidates must stay together or the ranker's groups break.
+    rng = np.random.default_rng(0)
+    n_lists = len(gtr)
+    holdout = set(rng.choice(n_lists, size=max(1, n_lists // 5), replace=False))
+
+    bounds, off = [], 0
+    for size in gtr:
+        bounds.append((off, off + size))
+        off += size
+
+    fit_rows = np.concatenate([np.arange(a, b) for i, (a, b) in enumerate(bounds)
+                               if i not in holdout])
+    es_rows = np.concatenate([np.arange(a, b) for i, (a, b) in enumerate(bounds)
+                              if i in holdout])
+    g_fit = np.array([s for i, s in enumerate(gtr) if i not in holdout])
+    g_es = np.array([s for i, s in enumerate(gtr) if i in holdout])
+
     ranker = lgb.LGBMRanker(
         objective="lambdarank",
         metric="ndcg",
@@ -167,8 +188,8 @@ def train_reranker(ds, model, device="cpu", verbose=True):
         verbose=-1,
     )
     ranker.fit(
-        Xtr, ytr, group=gtr,
-        eval_set=[(Xte, yte)], eval_group=[gte],
+        Xtr.iloc[fit_rows], ytr[fit_rows], group=g_fit,
+        eval_set=[(Xtr.iloc[es_rows], ytr[es_rows])], eval_group=[g_es],
         callbacks=[lgb.early_stopping(30, verbose=False)],
     )
 
