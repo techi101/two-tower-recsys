@@ -1,0 +1,6 @@
+# Serving only -- the demo app loads frozen embeddings and needs no ML stack.
+# This is why deployment is light: torch is a TRAINING dependency, not a
+# serving one. Keeping them separate is the whole reason the app cold-starts
+# in seconds instead of pulling ~800MB of CUDA wheels.
+streamlit>=1.38
+numpy>=1.26
