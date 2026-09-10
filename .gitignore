@@ -1,4 +1,8 @@
-data/
+# Raw MovieLens dataset -- not redistributable, fetch with scripts/download_data.py
+# Leading slash matters: an unanchored "data/" would also swallow docs/data/,
+# which holds the exported embeddings the web demo needs.
+/data/
+
 __pycache__/
 *.pyc
 .venv/
